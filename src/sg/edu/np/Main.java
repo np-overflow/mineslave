@@ -43,7 +43,9 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
     public void onEnable() {
         super.onEnable();
         getServer().getPluginManager().registerEvents(this, this);
-        server = new CustomWebSocketServer(8080);
+        int port = 8081;
+        getLogger().info("Starting WEBSOCKETS on port " + port);
+        server = new CustomWebSocketServer(port);
         server.setListener(this);
         server.start();
     }
