@@ -1,0 +1,13 @@
+name: CFC
+version: 1.0
+author: Ngee Ann Polytechnic, School of InfoComm Technology, Overflow SIG
+main: sg.edu.np.Main
+
+commands:
+  revert:
+    description: Revert player blocks
+    usage: /revert
+
+  replay:
+    description: Replays player blocks
+    usage: /replay

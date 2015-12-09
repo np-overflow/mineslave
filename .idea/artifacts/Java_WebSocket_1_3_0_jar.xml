@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact name="Java-WebSocket-1.3.0.jar">
+    <output-path>$PROJECT_DIR$/../../TestServer/plugins/lib</output-path>
+    <root id="root">
+      <element id="library" level="project" name="org.java-websocket:Java-WebSocket:1.3.0" />
+    </root>
+  </artifact>
+</component>

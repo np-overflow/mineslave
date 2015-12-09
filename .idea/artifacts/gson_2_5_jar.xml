@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact name="gson-2.5.jar">
+    <output-path>$PROJECT_DIR$/../../TestServer/plugins/lib</output-path>
+    <root id="root">
+      <element id="library" level="project" name="com.google.code.gson:gson:2.5" />
+    </root>
+  </artifact>
+</component>

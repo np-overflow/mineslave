@@ -1,0 +1,12 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="CFC">
+    <output-path>$PROJECT_DIR$/../../TestServer/plugins</output-path>
+    <root id="archive" name="CFC.jar">
+      <element id="module-output" name="CFC" />
+      <element id="file-copy" path="$PROJECT_DIR$/plugin.yml" />
+      <element id="directory" name="META-INF">
+        <element id="file-copy" path="$PROJECT_DIR$/META-INF/MANIFEST.MF" />
+      </element>
+    </root>
+  </artifact>
+</component>
