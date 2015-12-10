@@ -24,13 +24,13 @@ public class WorldWrapper {
         return new BlockWrapper(world.getBlockAt(x, y, z));
     }
 
-    public EntityWrapper spawnEntity(String type, int x, int y, int z) {
+    public EntityWrapper spawnEntity(PlayerWrapper playerWrapper, String type, int x, int y, int z) {
         try {
             EntityType entityType = EntityType.valueOf(type.toUpperCase().replaceAll(" ", " _"));
             Entity e = world.spawnEntity(new Location(world, x, y, z), entityType);
             EntityWrapper ew = new EntityWrapper(e);
             ServerWrapper.entityMap.put(e.getUniqueId().toString(), ew);
-            EntityHistory eh = new EntityHistory(Main.tempClientName, e, EntityHistory.EntityHistoryAction.SPAWN);
+            EntityHistory eh = new EntityHistory(playerWrapper.getPlayerName(), e, EntityHistory.EntityHistoryAction.SPAWN);
             ServerWrapper.historyList.add(eh);
             return ew;
         } catch (Exception e) {

@@ -16,6 +16,10 @@ public class PlayerWrapper {
         this.player = Bukkit.getPlayer(playerName);
     }
 
+    public String getPlayerName() {
+        return playerName;
+    }
+
     public boolean chat(String msg) {
         try {
             this.player.chat(msg);

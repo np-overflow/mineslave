@@ -21,13 +21,13 @@ public class BlockWrapper {
         this.type = block.getType().name();
     }
 
-    public boolean setType(String mName) {
+    public boolean setType(PlayerWrapper playerWrapper, String mName) {
         Material m = Material.getMaterial(mName.toUpperCase().replaceAll(" ", "_"));
         if (m == null) {
             return false;
         }
         this.type = m.name();
-        BlockHistory bh = new BlockHistory(Main.tempClientName, this.block, this.block.getType(), m);
+        BlockHistory bh = new BlockHistory(playerWrapper.getPlayerName(), this.block, this.block.getType(), m);
         ServerWrapper.historyList.add(bh);
         block.setType(m);
         return true;

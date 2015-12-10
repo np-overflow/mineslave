@@ -20,16 +20,15 @@ import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import sg.edu.np.history.BlockHistory;
 import sg.edu.np.history.EntityHistory;
+import sg.edu.np.history.History;
 import sg.edu.np.json.InitialJSON;
 import sg.edu.np.json.Message;
 import sg.edu.np.json.Status;
+import sg.edu.np.wrapper.PlayerWrapper;
 import sg.edu.np.wrapper.ServerWrapper;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Created by duncan on 30/11/15.
@@ -37,7 +36,6 @@ import java.util.Map;
 public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.WebSocketListener {
     CustomWebSocketServer server;
     public static Map<WebSocket, String> clientMap = new HashMap<>();
-    public static String tempClientName;
 
     @Override
     public void onEnable() {
@@ -82,8 +80,9 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
             return;
         }
 
+        final String playerName = clientMap.get(webSocket);
+
         Bukkit.getScheduler().runTask(this, () -> {
-            tempClientName = clientMap.get(webSocket);
             Message[] msgArray;
             try {
                 msgArray = gson.fromJson(s, Message[].class);
@@ -112,16 +111,28 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
                             break;
                         }
                     }
-                    Object[] paramsCasted = new Object[msg.methodParams.length];
-                    for (int i = 0; i < msg.methodParams.length; i++) {
-                        if (m.getParameterTypes()[i].equals(int.class) && msg.methodParams[i].getClass().equals(Double.class)) {
-                            Double d = (Double)msg.methodParams[i];
-                            paramsCasted[i] = d.intValue();
-                        } else if (m.getParameterTypes()[i].equals(double.class) && msg.methodParams[i].getClass().equals(Double.class)) {
-                            Double d = (Double)msg.methodParams[i];
-                            paramsCasted[i] = d.doubleValue();
-                        } else {
-                            paramsCasted[i] = m.getParameterTypes()[i].cast(msg.methodParams[i]);
+                    Object[] paramsCasted = null;
+                    if (m.getParameterCount() > 0) {
+                        if (m.getParameters()[0].getType().equals(PlayerWrapper.class) && m.getParameterCount() != msg.methodParams.length) {
+                            Object[] tempParams = new Object[m.getParameterCount()];
+                            tempParams[0] = new PlayerWrapper(playerName);
+                            for (int i = 0; i < msg.methodParams.length; i++) {
+                                tempParams[i + 1] = msg.methodParams[i];
+                            }
+                            msg.methodParams = tempParams;
+                            getLogger().info("PARAMS PATCH: " + Arrays.toString(tempParams));
+                        }
+                        paramsCasted = new Object[msg.methodParams.length];
+                        for (int i = 0; i < msg.methodParams.length; i++) {
+                            if (m.getParameterTypes()[i].equals(int.class) && msg.methodParams[i].getClass().equals(Double.class)) {
+                                Double d = (Double)msg.methodParams[i];
+                                paramsCasted[i] = d.intValue();
+                            } else if (m.getParameterTypes()[i].equals(double.class) && msg.methodParams[i].getClass().equals(Double.class)) {
+                                Double d = (Double)msg.methodParams[i];
+                                paramsCasted[i] = d.doubleValue();
+                            } else {
+                                paramsCasted[i] = m.getParameterTypes()[i].cast(msg.methodParams[i]);
+                            }
                         }
                     }
                     temp = m.invoke(temp, paramsCasted);
@@ -179,7 +190,7 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
             }
             final EntityHistory entityHistory = (EntityHistory) ServerWrapper.historyList.get(i);
             if (entityHistory.getPlayerName().equals(playerName)) {
-                Bukkit.getScheduler().runTask(Main.this, entityHistory::revert);
+                entityHistory.revert();
                 toRem.add(entityHistory);
             }
         }
@@ -191,19 +202,20 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
     }
 
     private synchronized BlockHistory[] revertPlayerBlocks(String playerName) {
-        List<BlockHistory> toRem = new ArrayList<>();
-        for (int i = ServerWrapper.historyList.size() - 1; i >= 0; i--) {
-            if (!(ServerWrapper.historyList.get(i) instanceof BlockHistory)) {
-                continue;
+        Iterator<History> historyIterator = ServerWrapper.historyList.iterator();
+        History temp;
+        BlockHistory tempBH;
+        List<BlockHistory> toRem = new LinkedList<>();
+        while (historyIterator.hasNext()) {
+            temp = historyIterator.next();
+            if (temp instanceof BlockHistory) {
+                tempBH = (BlockHistory)temp;
+                if (tempBH.getPlayerName().equals(playerName)) {
+                    tempBH.revert();
+                    toRem.add(0, tempBH);
+                    historyIterator.remove();
+                }
             }
-            final BlockHistory blockHistory = (BlockHistory)ServerWrapper.historyList.get(i);
-            if (blockHistory.getPlayerName().equals(playerName)) {
-                Bukkit.getScheduler().runTask(Main.this, () -> blockHistory.revert());
-                toRem.add(blockHistory);
-            }
-        }
-        for (BlockHistory bH : toRem) {
-            ServerWrapper.historyList.remove(bH);
         }
         BlockHistory[] array = new BlockHistory[toRem.size()];
         return toRem.toArray(array);
@@ -216,24 +228,61 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
             Bukkit.getScheduler().runTaskLater(Main.this, () -> {
                 block.redo();
                 ServerWrapper.historyList.add(block);
-            }, 6 * (blockArray.length - 1 - i));
+            }, 2 * (blockArray.length - 1 - i));
         }
         return blockArray.length;
     }
 
+    private synchronized int commit(String playerName) {
+        Iterator<History> historyIterator = ServerWrapper.historyList.iterator();
+        History temp;
+        BlockHistory tempBH;
+        int count = 0;
+        while (historyIterator.hasNext()) {
+            temp = historyIterator.next();
+            if (temp instanceof BlockHistory) {
+                tempBH = (BlockHistory)temp;
+                if (tempBH.getPlayerName().equals(playerName)) {
+                    historyIterator.remove();
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private synchronized int historyCount(String playerName) {
+        int count = 0;
+        for (History h : ServerWrapper.historyList) {
+            if (h.getPlayerName().equals(playerName)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(final CommandSender sender, final Command command, String label, String[] args) {
         if (sender instanceof Player) {
             Player p = (Player)sender;
-            if (command.getName().equals("revert")) {
-                BlockHistory[] blockHistories = revertPlayerBlocks(p.getName());
-                sender.sendMessage(ChatColor.GOLD + "Reverting " + blockHistories.length + " block actions");
-                EntityHistory[] entityHistories = revertPlayerEntities(p.getName());
-                sender.sendMessage(ChatColor.GOLD + "Reverting " + entityHistories.length + " entity actions");
-            } else if (command.getName().equals("replay")) {
-                int numActions = replay(p.getName());
-                sender.sendMessage(ChatColor.GOLD + "Replaying " + numActions + " block actions");
-            }
+            Bukkit.getScheduler().runTask(Main.this, () -> {
+                if (command.getName().equals("revert")) {
+                    BlockHistory[] blockHistories = revertPlayerBlocks(p.getName());
+                    sender.sendMessage(ChatColor.GOLD + "Reverting " + blockHistories.length + " block actions");
+                    EntityHistory[] entityHistories = revertPlayerEntities(p.getName());
+                    sender.sendMessage(ChatColor.GOLD + "Reverting " + entityHistories.length + " entity actions");
+                } else if (command.getName().equals("replay")) {
+                    int numActions = replay(p.getName());
+                    sender.sendMessage(ChatColor.GOLD + "Replaying " + numActions + " block actions");
+                } else if (command.getName().equals("commit")) {
+                    int numCount = commit(p.getName());
+                    sender.sendMessage(ChatColor.GOLD + "Committed " + numCount + " block actions");
+                } else if (command.getName().equals("status")) {
+                    int numCount = historyCount(p.getName());
+                    sender.sendMessage(ChatColor.GOLD + "History: " + numCount + " actions");
+                }
+            });
+
         }
         return super.onCommand(sender, command, label, args);
     }

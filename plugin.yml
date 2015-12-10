@@ -11,3 +11,11 @@ commands:
   replay:
     description: Replays player blocks
     usage: /replay
+
+  commit:
+    description: Commit changes
+    usage: /commit
+
+  status:
+    description: Get history status
+    usage: /status
