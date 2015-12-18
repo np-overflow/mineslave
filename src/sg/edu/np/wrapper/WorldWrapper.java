@@ -31,7 +31,7 @@ public class WorldWrapper {
             EntityWrapper ew = new EntityWrapper(e);
             ServerWrapper.entityMap.put(e.getUniqueId().toString(), ew);
             EntityHistory eh = new EntityHistory(playerWrapper.getPlayerName(), e, EntityHistory.EntityHistoryAction.SPAWN);
-            ServerWrapper.historyList.add(eh);
+            ServerWrapper.clientHistoryMap.get(playerWrapper.getPlayerName()).add(eh);
             return ew;
         } catch (Exception e) {
             e.printStackTrace();

@@ -28,7 +28,7 @@ public class BlockWrapper {
         }
         this.type = m.name();
         BlockHistory bh = new BlockHistory(playerWrapper.getPlayerName(), this.block, this.block.getType(), m);
-        ServerWrapper.historyList.add(bh);
+        ServerWrapper.clientHistoryMap.get(playerWrapper.getPlayerName()).add(bh);
         block.setType(m);
         return true;
     }

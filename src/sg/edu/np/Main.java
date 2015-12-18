@@ -15,6 +15,8 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
@@ -43,6 +45,9 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
         getServer().getPluginManager().registerEvents(this, this);
         int port = 8081;
         getLogger().info("Starting WEBSOCKETS on port " + port);
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            ServerWrapper.clientHistoryMap.put(p.getName(), new LinkedList<>());
+        }
         server = new CustomWebSocketServer(port);
         server.setListener(this);
         server.start();
@@ -173,36 +178,38 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
     @EventHandler
     public void blockPlace(BlockPlaceEvent event) {
         BlockHistory blockHistory = new BlockHistory(event.getPlayer().getName(), event.getBlock(), Material.AIR, event.getBlock().getType());
-        ServerWrapper.historyList.add(blockHistory);
+        ServerWrapper.clientHistoryMap.get(event.getPlayer().getName()).add(blockHistory);
     }
 
     @EventHandler
     public void blockBreak(BlockBreakEvent event) {
         BlockHistory blockHistory = new BlockHistory(event.getPlayer().getName(), event.getBlock(), event.getBlock().getType(), Material.AIR);
-        ServerWrapper.historyList.add(blockHistory);
+        ServerWrapper.clientHistoryMap.get(event.getPlayer().getName()).add(blockHistory);
     }
 
     private synchronized EntityHistory[] revertPlayerEntities(String playerName) {
         List<EntityHistory> toRem = new ArrayList<>();
-        for (int i = ServerWrapper.historyList.size() - 1; i >= 0; i--) {
-            if (!(ServerWrapper.historyList.get(i) instanceof EntityHistory)) {
+        for (int i = ServerWrapper.clientHistoryMap.get(playerName).size() - 1; i >= 0; i--) {
+            if (!(ServerWrapper.clientHistoryMap.get(playerName).get(i) instanceof EntityHistory)) {
                 continue;
             }
-            final EntityHistory entityHistory = (EntityHistory) ServerWrapper.historyList.get(i);
+            final EntityHistory entityHistory = (EntityHistory) ServerWrapper.clientHistoryMap.get(playerName).get(i);
             if (entityHistory.getPlayerName().equals(playerName)) {
                 entityHistory.revert();
                 toRem.add(entityHistory);
             }
         }
         for (EntityHistory eH : toRem) {
-            ServerWrapper.historyList.remove(eH);
+            ServerWrapper.clientHistoryMap.get(playerName).remove(eH);
         }
         EntityHistory[] array = new EntityHistory[toRem.size()];
         return toRem.toArray(array);
     }
 
     private synchronized BlockHistory[] revertPlayerBlocks(String playerName) {
-        Iterator<History> historyIterator = ServerWrapper.historyList.iterator();
+        List<History> historyList = ServerWrapper.clientHistoryMap.get(playerName);
+        Collections.reverse(historyList);
+        Iterator<History> historyIterator = historyList.iterator();
         History temp;
         BlockHistory tempBH;
         List<BlockHistory> toRem = new LinkedList<>();
@@ -223,18 +230,20 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
 
     private synchronized int replay(String playerName) {
         BlockHistory[] blockArray = revertPlayerBlocks(playerName);
-        for (int i = blockArray.length - 1; i >= 0; i--) {
-            final BlockHistory block = blockArray[i];
+        List<BlockHistory> blockList = Arrays.asList(blockArray);
+        Collections.reverse(blockList);
+        for (int i = 0; i < blockList.size(); i++) {
+            final BlockHistory block = blockList.get(i);
             Bukkit.getScheduler().runTaskLater(Main.this, () -> {
                 block.redo();
-                ServerWrapper.historyList.add(block);
+                ServerWrapper.clientHistoryMap.get(playerName).add(block);
             }, 2 * (blockArray.length - 1 - i));
         }
         return blockArray.length;
     }
 
     private synchronized int commit(String playerName) {
-        Iterator<History> historyIterator = ServerWrapper.historyList.iterator();
+        Iterator<History> historyIterator = ServerWrapper.clientHistoryMap.get(playerName).iterator();
         History temp;
         BlockHistory tempBH;
         int count = 0;
@@ -253,7 +262,7 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
 
     private synchronized int historyCount(String playerName) {
         int count = 0;
-        for (History h : ServerWrapper.historyList) {
+        for (History h : ServerWrapper.clientHistoryMap.get(playerName)) {
             if (h.getPlayerName().equals(playerName)) {
                 count++;
             }
@@ -301,5 +310,15 @@ public class Main extends JavaPlugin implements Listener, CustomWebSocketServer.
         p.sendMessage(String.format("%sBlock Type: %s", ChatColor.GOLD, b.getType().name()));
         Location l = b.getLocation();
         p.sendMessage(String.format("%sBlock Location: x=%s%d %sy=%s%d %sz=%s%d", ChatColor.GOLD, ChatColor.RED, l.getBlockX(), ChatColor.GOLD, ChatColor.YELLOW, l.getBlockY(), ChatColor.GOLD, ChatColor.GRAY, l.getBlockZ()));
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        ServerWrapper.clientHistoryMap.put(event.getPlayer().getName(), new LinkedList<>());
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        ServerWrapper.clientHistoryMap.remove(event.getPlayer().getName());
     }
 }

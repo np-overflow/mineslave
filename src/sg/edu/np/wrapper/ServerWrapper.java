@@ -12,7 +12,7 @@ import java.util.Map;
  */
 public class ServerWrapper {
     public static Map<String, EntityWrapper> entityMap = new HashMap<>();
-    public static List<History> historyList = new LinkedList<>();
+    public static Map<String, List<History>> clientHistoryMap = new HashMap<>();
 
     public static WorldWrapper getWorld(int index) {
         return new WorldWrapper(index);
